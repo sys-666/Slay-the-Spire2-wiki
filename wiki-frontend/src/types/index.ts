@@ -22,6 +22,14 @@ export interface Post {
   author: string
   createdAt: string
   updatedAt: string
+  postType?: 'character' | 'card' | 'boss'
+  cardSubtype?: 'attack' | 'skill' | 'power'
+  bossFloor?: 1 | 2 | 3
+  cost?: number
+  rarity?: string
+  hp?: number
+  initialRelic?: string
+  coreMechanic?: string
 }
 
 export interface Pagination {

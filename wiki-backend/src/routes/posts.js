@@ -13,12 +13,27 @@ router.get('/posts', async (req, res) => {
       pageSize = 10,
       category,
       keyword,
+      postType,
+      cardSubtype,
+      bossFloor,
     } = req.query;
 
     const filter = {};
 
     if (category) {
       filter.category = category;
+    }
+
+    if (postType) {
+      filter.postType = postType;
+    }
+
+    if (cardSubtype) {
+      filter.cardSubtype = cardSubtype;
+    }
+
+    if (bossFloor) {
+      filter.bossFloor = Number(bossFloor);
     }
 
     if (keyword) {
@@ -78,7 +93,7 @@ router.get('/posts/:id', async (req, res) => {
 // POST /api/posts — 创建文章（需管理员）
 router.post('/posts', auth, admin, async (req, res) => {
   try {
-    const { title, content, summary, cover, category, tags } = req.body;
+    const { title, content, summary, cover, category, tags, postType, cardSubtype, bossFloor, cost, rarity, hp, initialRelic, coreMechanic } = req.body;
     if (!title) {
       return res.status(400).json({ message: '标题不能为空' });
     }
@@ -91,6 +106,14 @@ router.post('/posts', auth, admin, async (req, res) => {
       category: category || '未分类',
       tags: tags || [],
       author: req.user.username,
+      postType: postType || null,
+      cardSubtype: cardSubtype || null,
+      bossFloor: bossFloor || null,
+      cost: cost || null,
+      rarity: rarity || null,
+      hp: hp || null,
+      initialRelic: initialRelic || null,
+      coreMechanic: coreMechanic || null,
     });
 
     res.status(201).json({ data: post });
@@ -102,11 +125,11 @@ router.post('/posts', auth, admin, async (req, res) => {
 // PUT /api/posts/:id — 编辑文章（需管理员）
 router.put('/posts/:id', auth, admin, async (req, res) => {
   try {
-    const { title, content, summary, cover, category, tags, isPinned } = req.body;
+    const { title, content, summary, cover, category, tags, isPinned, postType, cardSubtype, bossFloor, cost, rarity, hp, initialRelic, coreMechanic } = req.body;
 
     const post = await Post.findByIdAndUpdate(
       req.params.id,
-      { title, content, summary, cover, category, tags, isPinned },
+      { title, content, summary, cover, category, tags, isPinned, postType, cardSubtype, bossFloor, cost, rarity, hp, initialRelic, coreMechanic },
       { new: true, runValidators: true }
     );
 

@@ -11,6 +11,15 @@ const postSchema = new mongoose.Schema(
     isPinned: { type: Boolean, default: false },
     viewCount: { type: Number, default: 0 },
     author: { type: String, default: 'admin' },
+    postType: { type: String, enum: ['character', 'card', 'boss'], default: null, index: true },
+    cardSubtype: { type: String, enum: ['attack', 'skill', 'power'], default: null },
+    bossFloor: { type: Number, enum: [1, 2, 3], default: null },
+    // 类型专属扩展字段
+    cost: { type: Number, default: null },          // 卡牌费用
+    rarity: { type: String, default: null },         // 卡牌稀有度
+    hp: { type: Number, default: null },             // Boss 生命值 / 角色初始血量
+    initialRelic: { type: String, default: null },   // 角色初始遗物
+    coreMechanic: { type: String, default: null },   // 核心机制简述
   },
   { timestamps: true }
 );

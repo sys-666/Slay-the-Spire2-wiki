@@ -21,7 +21,7 @@ function handleSearch() {
 <template>
   <header class="app-header">
     <div class="header-inner container">
-      <router-link to="/" class="logo">📚 Wiki 知识库</router-link>
+      <router-link to="/" class="logo">🗡️ 杀戮尖塔2 Wiki</router-link>
 
       <div class="header-search">
         <el-input
@@ -77,6 +77,7 @@ function handleSearch() {
   font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .header-search {

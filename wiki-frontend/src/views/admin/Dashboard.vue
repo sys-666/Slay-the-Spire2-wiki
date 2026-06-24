@@ -55,6 +55,14 @@ onMounted(fetch)
     <el-table :data="posts" v-loading="loading" stripe style="width: 100%">
       <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip />
       <el-table-column prop="category" label="分类" width="100" />
+      <el-table-column label="类型" width="80">
+        <template #default="{ row }">
+          <el-tag v-if="row.postType === 'character'" type="primary" size="small">角色</el-tag>
+          <el-tag v-else-if="row.postType === 'card'" type="success" size="small">卡牌</el-tag>
+          <el-tag v-else-if="row.postType === 'boss'" type="warning" size="small">Boss</el-tag>
+          <span v-else class="text-muted">-</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="author" label="作者" width="100" />
       <el-table-column label="置顶" width="70">
         <template #default="{ row }">

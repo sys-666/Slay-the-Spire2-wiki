@@ -5,11 +5,17 @@ import TagCloud from '@/components/TagCloud.vue'
 
 const activeTag = ref('')
 const activeCategory = ref('')
+const activePostType = ref('')
 
-const categories = ['全部', '技术', '前端', '后端', '生活', '未分类']
+const navItems = [
+  { value: '', icon: '📋', label: '全部' },
+  { value: 'character', icon: '🎮', label: '角色介绍' },
+  { value: 'card', icon: '🃏', label: '卡牌介绍' },
+  { value: 'boss', icon: '🐉', label: 'Boss介绍' },
+]
 
-function selectCategory(cat: string) {
-  activeCategory.value = cat === '全部' ? '' : cat
+function selectPostType(val: string) {
+  activePostType.value = val
 }
 
 function selectTag(tag: string) {
@@ -21,25 +27,26 @@ function selectTag(tag: string) {
   <div class="home container">
     <div class="home-layout">
       <aside class="sidebar">
-        <div class="category-widget">
-          <h3>分类</h3>
-          <div class="category-list">
-            <span
-              v-for="cat in categories"
-              :key="cat"
-              class="cat-item"
-              :class="{ active: (cat === '全部' ? '' : cat) === activeCategory }"
-              @click="selectCategory(cat)"
+        <div class="nav-widget">
+          <h3>📖 板块导航</h3>
+          <div class="nav-list">
+            <div
+              v-for="item in navItems"
+              :key="item.value"
+              class="nav-item"
+              :class="{ active: activePostType === item.value }"
+              @click="selectPostType(item.value)"
             >
-              {{ cat }}
-            </span>
+              <span class="nav-icon">{{ item.icon }}</span>
+              <span class="nav-label">{{ item.label }}</span>
+            </div>
           </div>
         </div>
         <TagCloud :active="activeTag" @select="selectTag" />
       </aside>
 
       <div class="main-content">
-        <PostList :category="activeCategory" :tag="activeTag" />
+        <PostList :category="activeCategory" :tag="activeTag" :post-type="activePostType" />
       </div>
     </div>
   </div>
@@ -67,37 +74,47 @@ function selectTag(tag: string) {
   min-width: 0;
 }
 
-.category-widget {
+.nav-widget {
   background: var(--bg-card);
   border-radius: 12px;
   padding: 20px;
   box-shadow: var(--shadow);
 }
 
-.category-widget h3 {
+.nav-widget h3 {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 12px;
 }
 
-.category-list {
+.nav-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.cat-item {
-  padding: 8px 12px;
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
   font-size: 14px;
+  color: var(--text-primary);
+  user-select: none;
 }
-.cat-item:hover { background: var(--hover-bg); }
-.cat-item.active {
+.nav-item:hover {
+  background: var(--hover-bg);
+}
+.nav-item.active {
   background: var(--el-color-primary-light-9);
   color: var(--el-color-primary);
   font-weight: 600;
+}
+.nav-icon {
+  font-size: 18px;
 }
 
 @media (max-width: 768px) {

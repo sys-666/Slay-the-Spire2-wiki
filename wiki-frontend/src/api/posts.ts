@@ -6,6 +6,9 @@ export interface PostParams {
   pageSize?: number
   category?: string
   keyword?: string
+  postType?: string
+  cardSubtype?: string
+  bossFloor?: string
 }
 
 export const getPosts = (params: PostParams): Promise<PostsResponse> =>

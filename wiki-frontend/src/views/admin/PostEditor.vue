@@ -22,9 +22,17 @@ const form = ref({
   cover: '',
   category: '未分类',
   tags: '',
+  postType: '',
+  cardSubtype: '',
+  bossFloor: null as number | null,
+  cost: null as number | null,
+  rarity: '',
+  hp: null as number | null,
+  initialRelic: '',
+  coreMechanic: '',
 })
 
-const categories = ['技术', '前端', '后端', '生活', '未分类']
+const categories = ['铁甲战士', '静默猎手', '故障机器人', '储君', '亡灵契约师', '通用', '第一层·密林', '第一层·暗港', '第二层·巢穴', '第三层·荣耀']
 
 const editor = useEditor({
   content: '',
@@ -77,7 +85,7 @@ async function save() {
   if (!editor.value?.getHTML()) return ElMessage.warning('请输入内容')
 
   saving.value = true
-  const payload = {
+  const payload: Record<string, any> = {
     title: form.value.title,
     content: editor.value?.getHTML() || '',
     summary: form.value.summary,
@@ -87,6 +95,14 @@ async function save() {
       .split(/[,，]/)
       .map((t) => t.trim())
       .filter(Boolean),
+    postType: form.value.postType || null,
+    cardSubtype: form.value.cardSubtype || null,
+    bossFloor: form.value.bossFloor,
+    cost: form.value.cost,
+    rarity: form.value.rarity || null,
+    hp: form.value.hp,
+    initialRelic: form.value.initialRelic || null,
+    coreMechanic: form.value.coreMechanic || null,
   }
 
   try {
@@ -113,6 +129,14 @@ onMounted(async () => {
         cover: p.cover,
         category: p.category,
         tags: p.tags?.join(', ') || '',
+        postType: p.postType || '',
+        cardSubtype: p.cardSubtype || '',
+        bossFloor: p.bossFloor || null,
+        cost: p.cost || null,
+        rarity: p.rarity || '',
+        hp: p.hp || null,
+        initialRelic: p.initialRelic || '',
+        coreMechanic: p.coreMechanic || '',
       }
       editor.value?.commands.setContent(p.content)
     } catch { ElMessage.error('加载文章失败'); router.push('/admin') }
@@ -134,10 +158,44 @@ onMounted(async () => {
       <el-input v-model="form.title" placeholder="文章标题" size="large" style="margin-bottom: 16px" />
 
       <div class="editor-meta">
+        <el-select v-model="form.postType" placeholder="内容类型" style="width: 140px">
+          <el-option label="通用" value="" />
+          <el-option label="👤 角色" value="character" />
+          <el-option label="🃏 卡牌" value="card" />
+          <el-option label="🐉 Boss" value="boss" />
+        </el-select>
         <el-select v-model="form.category" placeholder="分类">
           <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
         </el-select>
         <el-input v-model="form.tags" placeholder="标签（逗号分隔）" style="flex: 1" />
+      </div>
+
+      <!-- Card-specific fields -->
+      <div v-if="form.postType === 'card'" class="editor-type-fields">
+        <el-select v-model="form.cardSubtype" placeholder="卡牌子类" style="width: 130px">
+          <el-option label="攻击牌" value="attack" />
+          <el-option label="技能牌" value="skill" />
+          <el-option label="能力牌" value="power" />
+        </el-select>
+        <el-input-number v-model="form.cost" :min="0" :max="10" placeholder="费用" style="width: 120px" />
+        <el-input v-model="form.rarity" placeholder="稀有度（如：普通/罕见/稀有）" style="width: 200px" />
+      </div>
+
+      <!-- Boss-specific fields -->
+      <div v-if="form.postType === 'boss'" class="editor-type-fields">
+        <el-select v-model="form.bossFloor" placeholder="所属层数" style="width: 130px">
+          <el-option label="第一层" :value="1" />
+          <el-option label="第二层" :value="2" />
+          <el-option label="第三层" :value="3" />
+        </el-select>
+        <el-input-number v-model="form.hp" :min="0" placeholder="生命值" style="width: 160px" />
+      </div>
+
+      <!-- Character-specific fields -->
+      <div v-if="form.postType === 'character'" class="editor-type-fields">
+        <el-input-number v-model="form.hp" :min="0" placeholder="初始血量" style="width: 130px" />
+        <el-input v-model="form.initialRelic" placeholder="初始遗物" style="width: 200px" />
+        <el-input v-model="form.coreMechanic" placeholder="核心机制" style="flex: 1" />
       </div>
 
       <div class="cover-upload">
@@ -229,7 +287,16 @@ onMounted(async () => {
 .editor-meta {
   display: flex;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+}
+
+.editor-type-fields {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
 }
 
 .cover-upload {

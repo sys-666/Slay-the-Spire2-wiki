@@ -10,6 +10,21 @@ const router = createRouter({
       component: () => import('@/views/front/HomePage.vue'),
     },
     {
+      path: '/characters',
+      name: 'characters',
+      component: () => import('@/views/front/CharacterList.vue'),
+    },
+    {
+      path: '/cards',
+      name: 'cards',
+      component: () => import('@/views/front/CardList.vue'),
+    },
+    {
+      path: '/bosses',
+      name: 'bosses',
+      component: () => import('@/views/front/BossList.vue'),
+    },
+    {
       path: '/post/:id',
       name: 'post-detail',
       component: () => import('@/views/front/PostDetail.vue'),

@@ -64,6 +64,11 @@ onMounted(async () => {
         <header class="article-header">
           <div class="article-tags">
             <el-tag v-if="post.isPinned" type="danger" size="small" effect="dark">置顶</el-tag>
+            <el-tag v-if="post.postType === 'character'" type="primary" size="small">👤 角色</el-tag>
+            <el-tag v-else-if="post.postType === 'card'" :type="post.cardSubtype === 'attack' ? 'danger' : post.cardSubtype === 'skill' ? 'success' : '' " size="small">
+              🃏 卡牌
+            </el-tag>
+            <el-tag v-else-if="post.postType === 'boss'" type="warning" size="small">🐉 Boss</el-tag>
             <el-tag>{{ post.category }}</el-tag>
             <el-tag v-for="t in post.tags" :key="t" type="info" size="small" effect="plain">{{ t }}</el-tag>
           </div>
@@ -73,6 +78,33 @@ onMounted(async () => {
             <span>{{ post.createdAt?.slice(0, 10) }}</span>
             <span>👁 {{ post.viewCount }} 次阅读</span>
           </div>
+
+          <!-- Type-specific info bar -->
+          <div v-if="post.postType === 'character'" class="info-bar character-bar">
+            <div class="info-item" v-if="post.hp">❤️ 初始血量: {{ post.hp }}</div>
+            <div class="info-item" v-if="post.initialRelic">🏺 初始遗物: {{ post.initialRelic }}</div>
+            <div class="info-item" v-if="post.coreMechanic">⚡ 核心机制: {{ post.coreMechanic }}</div>
+          </div>
+
+          <div v-if="post.postType === 'card'" class="info-bar card-bar">
+            <div class="info-item cost-badge">💰 费用: {{ post.cost ?? '?' }}</div>
+            <div class="info-item">
+              类型:
+              <span :class="`subtype-${post.cardSubtype}`">
+                {{ post.cardSubtype === 'attack' ? '攻击牌' : post.cardSubtype === 'skill' ? '技能牌' : post.cardSubtype === 'power' ? '能力牌' : '-' }}
+              </span>
+            </div>
+            <div class="info-item" v-if="post.rarity">💎 稀有度: {{ post.rarity }}</div>
+          </div>
+
+          <div v-if="post.postType === 'boss'" class="info-bar boss-bar">
+            <div class="info-item" v-if="post.bossFloor">
+              📍 所属层数: 第{{ post.bossFloor }}层
+            </div>
+            <div class="info-item" v-if="post.hp">❤️ 生命值: {{ post.hp }}</div>
+            <div class="info-item" v-if="post.coreMechanic">⚡ 核心机制: {{ post.coreMechanic }}</div>
+          </div>
+
           <img v-if="post.cover" :src="post.cover" :alt="post.title" class="article-cover" />
         </header>
 
@@ -107,6 +139,39 @@ onMounted(async () => {
 .article-header h1 { font-size: 28px; font-weight: 700; margin-bottom: 12px; }
 .article-meta { display: flex; gap: 16px; color: var(--text-muted); font-size: 14px; }
 .article-cover { width: 100%; max-height: 400px; object-fit: cover; border-radius: 8px; margin-top: 16px; }
+
+/* Type-specific info bars */
+.info-bar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-top: 12px;
+  font-size: 14px;
+}
+.character-bar {
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.1), rgba(64, 158, 255, 0.05));
+  border: 1px solid rgba(64, 158, 255, 0.2);
+}
+.card-bar {
+  background: linear-gradient(135deg, rgba(242, 156, 19, 0.1), rgba(242, 156, 19, 0.05));
+  border: 1px solid rgba(242, 156, 19, 0.2);
+}
+.boss-bar {
+  background: linear-gradient(135deg, rgba(231, 76, 60, 0.1), rgba(231, 76, 60, 0.05));
+  border: 1px solid rgba(231, 76, 60, 0.2);
+}
+.info-item {
+  color: var(--text-secondary);
+}
+.cost-badge {
+  font-weight: 600;
+  color: var(--el-color-primary);
+}
+.subtype-attack { color: #e74c3c; font-weight: 600; }
+.subtype-skill { color: #27ae60; font-weight: 600; }
+.subtype-power { color: #3498db; font-weight: 600; }
 
 .article-content {
   padding-top: 24px;
