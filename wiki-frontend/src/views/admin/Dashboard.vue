@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPosts, deletePost, updatePost } from '@/api/posts'
@@ -11,11 +11,26 @@ const loading = ref(false)
 const page = ref(1)
 const total = ref(0)
 const pageSize = 10
+const activePostType = ref('')
+
+const typeFilters = [
+  { value: '', label: '全部' },
+  { value: 'character', label: '🎮 角色' },
+  { value: 'card', label: '🃏 卡牌' },
+  { value: 'boss', label: '🐉 Boss' },
+]
+
+function selectPostType(val: string) {
+  activePostType.value = val
+  page.value = 1
+}
 
 async function fetch() {
   loading.value = true
   try {
-    const res = await getPosts({ page: page.value, pageSize })
+    const params: Record<string, any> = { page: page.value, pageSize }
+    if (activePostType.value) params.postType = activePostType.value
+    const res = await getPosts(params)
     posts.value = res.data
     total.value = res.pagination.total
   } catch { /* handled */ }
@@ -42,6 +57,8 @@ async function handleDelete(post: Post) {
   } catch { /* cancelled or error */ }
 }
 
+watch(activePostType, () => fetch())
+
 onMounted(fetch)
 </script>
 
@@ -50,6 +67,18 @@ onMounted(fetch)
     <div class="dash-header">
       <h2>文章管理</h2>
       <el-button type="primary" @click="router.push('/admin/post/new')">+ 发布文章</el-button>
+    </div>
+
+    <div class="type-filters">
+      <button
+        v-for="f in typeFilters"
+        :key="f.value"
+        class="filter-btn"
+        :class="{ active: activePostType === f.value }"
+        @click="selectPostType(f.value)"
+      >
+        {{ f.label }}
+      </button>
     </div>
 
     <el-table :data="posts" v-loading="loading" stripe style="width: 100%">
@@ -106,7 +135,39 @@ onMounted(fetch)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+}
+
+.type-filters {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: var(--bg-card);
+  padding: 6px;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.filter-btn {
+  flex: 1;
+  max-width: 120px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.filter-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+.filter-btn.active {
+  background: var(--el-color-primary);
+  color: #fff;
+  font-weight: 600;
 }
 
 .text-muted { color: var(--text-muted); }
