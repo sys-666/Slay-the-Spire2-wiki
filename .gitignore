@@ -33,3 +33,6 @@ pnpm-debug.log*
 # Build output
 dist
 dist-ssr
+
+# 上传的图片/文件
+wiki-backend/src/uploads/
