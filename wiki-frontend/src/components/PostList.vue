@@ -26,6 +26,7 @@ async function fetch() {
       pageSize,
       category: props.category,
       keyword: props.keyword,
+      tag: props.tag,
       postType: props.postType,
     })
     posts.value = res.data

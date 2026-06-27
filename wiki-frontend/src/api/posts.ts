@@ -6,6 +6,7 @@ export interface PostParams {
   pageSize?: number
   category?: string
   keyword?: string
+  tag?: string
   postType?: string
   cardSubtype?: string
   bossFloor?: string

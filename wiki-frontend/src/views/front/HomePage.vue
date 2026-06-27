@@ -19,7 +19,7 @@ function selectPostType(val: string) {
 }
 
 function selectTag(tag: string) {
-  activeTag.value = tag
+  activeTag.value = activeTag.value === tag ? '' : tag
 }
 </script>
 

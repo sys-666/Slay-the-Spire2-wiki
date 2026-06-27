@@ -13,6 +13,7 @@ router.get('/posts', async (req, res) => {
       pageSize = 10,
       category,
       keyword,
+      tag,
       postType,
       cardSubtype,
       bossFloor,
@@ -22,6 +23,10 @@ router.get('/posts', async (req, res) => {
 
     if (category) {
       filter.category = category;
+    }
+
+    if (tag) {
+      filter.tags = tag;
     }
 
     if (postType) {
