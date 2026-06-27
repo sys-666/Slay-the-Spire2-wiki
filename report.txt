@@ -1,0 +1,422 @@
+================================================================================
+                          实 验 报 告
+================================================================================
+
+一、实践名称
+
+    Vue 3 全栈 Wiki 知识库系统开发——以《杀戮尖塔2》游戏百科为例
+
+
+二、实践内容
+
+    基于 Vue 3 + Vite + TypeScript 构建前端，Node.js + Express + MongoDB 构建后端，
+    实现一个包含前台展示与后台管理的完整 Wiki 系统。前台支持文章列表分页浏览、分类筛选、
+    关键词搜索、标签云导航、文章详情渲染、游客评论功能；后台支持管理员登录（JWT 认证）、
+    文章的发布/编辑/删除/置顶、封面图上传、评论管理。前端使用 Element Plus 组件库，
+    集成 TipTap 富文本编辑器，支持暗色模式切换和响应式布局。
+
+
+三、项目背景
+
+    本项目是前端开发初级实践大作业，要求完成一个前后端分离的 Wiki 知识库系统。选题
+    方向是《杀戮尖塔2》（Slay the Spire 2）的游戏百科，这是一款 Roguelike 卡牌游戏，
+    包含多个可选角色、上百张卡牌和十余个 Boss，内容结构非常适合 Wiki 形式的组织与
+    展示。项目涉及的技术栈覆盖了现代 Web 开发的主流技术：前端使用 Vue 3 Composition
+    API + TypeScript 保证类型安全，后端使用 Express 框架提供 RESTful 接口，数据持久化
+    使用 MongoDB 配合 Mongoose ODM，前后端通过 Axios + JWT Token 进行身份认证通信。
+
+
+四、项目目标
+
+    1. 搭建一个功能完整的 Wiki 知识库系统，涵盖前台浏览和后台管理两大模块。
+    2. 实现基于 JWT 的用户认证与角色授权，区分普通用户（仅浏览）和管理员（可编辑）。
+    3. 前台提供文章列表分页、分类/标签/关键词多维度筛选、文章详情渲染、游客评论。
+    4. 后台提供文章 CRUD、置顶管理、富文本编辑、图片上传、评论审核删除功能。
+    5. 支持暗色/亮色主题切换和移动端响应式适配。
+    6. 为游戏 Wiki 定制化的内容类型字段（角色/卡牌/Boss，各有专属属性）。
+
+
+五、功能实现
+
+    以下按模块详细说明每个功能的具体实现方式，所有描述均基于实际源代码。
+
+
+    5.1 项目架构与工程化配置
+
+    项目采用前端 + 后端分离的目录结构，根目录下分为 wiki-frontend/ 和 wiki-backend/
+    两个独立子项目，各自拥有独立的 package.json 和依赖管理。
+
+    前端基于 Vite 构建工具，vite.config.ts 中配置了 @vitejs/plugin-vue 插件、路径别名
+    "@" -> "src/"、以及开发服务器代理。开发时前端运行在 localhost:5173，所有 /api 和
+    /uploads 的请求被 Vite 代理转发到后端的 localhost:3000，避免了跨域问题。TypeScript
+    配置使用 vue-tsc 进行类型检查，确保 Vue 单文件组件中的 TypeScript 代码也能被正确校验。
+
+    后端入口为 server.js，启动时先通过 dotenv 加载 .env 文件中的环境变量（PORT、
+    MONGO_URI、JWT_SECRET），然后连接 MongoDB，依次注册中间件和路由，最后监听端口。
+    错误处理中间件统一捕获异常并返回 JSON 格式的错误信息。
+
+
+    5.2 数据库设计与模型定义
+
+    使用 MongoDB 作为数据库，通过 Mongoose 定义三个数据模型：
+
+    （1）User 模型（wiki-backend/src/models/User.js）
+         字段：username（唯一，必填）、password（必填）、role（枚举 admin/user，默认 user）。
+         密码安全：利用 Mongoose 的 pre-save 钩子，在保存前通过 bcryptjs 对密码进行哈希
+         加盐处理（盐轮数为 10）。定义实例方法 comparePassword() 用于登录时密码比对，
+         toJSON() 方法重写以确保序列化时自动剔除 password 字段，杜绝密码泄露。
+         开启 timestamps 自动记录创建和更新时间。
+
+    （2）Post 模型（wiki-backend/src/models/Post.js）
+         通用字段：title（必填）、content、summary、cover、category、tags（字符串数组）、
+         isPinned（置顶标志）、viewCount（阅读计数，默认 0）、author。
+         游戏专属分类字段：postType（枚举 character/card/boss，区分内容类型）、
+         cardSubtype（卡牌子类：attack/skill/power）、bossFloor（Boss 所属层数 1/2/3）、
+         cost（卡牌费用）、rarity（稀有度）、hp（血量）、initialRelic（角色初始遗物）、
+         coreMechanic（核心机制简述）。
+         索引设计：title 和 content 建立文本索引以支持 MongoDB 全文搜索；category 建立
+         普通索引用于分类筛选；(isPinned, createdAt) 建立复合降序索引以支持置顶优先的列表排序。
+
+    （3）Comment 模型（wiki-backend/src/models/Comment.js）
+         字段：post（ObjectId，关联 Post 文档）、author（昵称，字符串）、content（评论内容）。
+         索引：(post, createdAt) 复合降序索引，优化按文章查询并按时序排列的评论查询。
+
+
+    5.3 后端 API 设计与实现
+
+    所有 API 统一挂载在 /api 路径前缀下，采用 RESTful 风格设计。
+
+    （1）认证接口（wiki-backend/src/routes/auth.js）
+         POST /api/login：接收 {username, password}，先校验非空，然后从数据库查询用户，
+         调用 comparePassword() 比对密码，成功后使用 jsonwebtoken 签发 Token，payload
+         包含 {id, username, role}，有效期 7 天。返回 Token 和用户基本信息。
+         GET /api/user：受 auth 中间件保护，根据 Token 中的用户 ID 查询并返回当前用户信息，
+         使用 .select('-password') 排除密码字段。
+
+    （2）文章接口（wiki-backend/src/routes/posts.js）
+         GET /api/posts：公开接口，支持多条件组合筛选，query 参数包括 page/pageSize（分页）、
+         category（分类精确匹配）、keyword（标题+内容模糊搜索，使用正则表达式实现，
+         且对特殊字符做了转义处理）、tag（标签精确匹配）、postType/cardSubtype/bossFloor
+         （类型专属筛选）。使用 Promise.all 并行执行查询和计数，提升性能。查询排序规则为
+         置顶优先（isPinned: -1），再按创建时间倒序。列表接口通过 .select('-content') 排除
+         正文内容以减少传输量。
+
+         GET /api/posts/:id：公开接口，查询文章详情。使用 findByIdAndUpdate 配合 $inc
+         操作符原子性地将 viewCount 加 1，实现了阅读量统计功能。
+
+         POST /api/posts：受 auth + admin 双重中间件保护，接收完整的文章字段（包括
+         postType、cardSubtype、bossFloor、cost 等游戏专属字段），校验标题非空后创建文档。
+
+         PUT /api/posts/:id：受双重中间件保护，接收更新字段，使用 findByIdAndUpdate
+         并开启 runValidators 确保数据校验。
+
+         DELETE /api/posts/:id：受双重中间件保护，删除文章后同时级联删除该文章下的所有
+         评论（Comment.deleteMany），保证数据一致性。
+
+    （3）评论接口（wiki-backend/src/routes/comments.js）
+         GET /api/comments：通过 postId 查询指定文章下的评论列表，分页返回（默认每页 50 条），
+         按创建时间倒序排列。
+         POST /api/comments：完全公开，无需登录即可评论。对作者昵称（最长 20 字符）和
+         评论内容（最长 1000 字符）做了长度限制校验，前后均做 trim 处理。
+         DELETE /api/comments/:id：受双重中间件保护，仅管理员可删除评论。
+
+    （4）文件上传接口（wiki-backend/src/routes/upload.js）
+         POST /api/upload：受双重中间件保护。使用 multer 中间件处理文件上传，配置
+         diskStorage 存储引擎，文件命名采用 时间戳+随机数+原扩展名 的方式避免冲突。
+         文件类型限制为 JPEG/PNG/GIF/WebP，大小限制 5MB。上传目录为 src/uploads/，
+         服务器启动时自动检查并创建该目录。成功后返回文件访问 URL。
+
+    （5）认证与授权中间件
+         auth 中间件（wiki-backend/src/middleware/auth.js）：从请求头的 Authorization
+         字段提取 Bearer Token，使用 jwt.verify() 验证，将解码后的用户信息挂载到 req.user。
+         Token 无效或不存在时返回 401 状态码。
+         admin 中间件（wiki-backend/src/middleware/admin.js）：检查 req.user.role 是否为
+         "admin"，不是则返回 403 状态码。两个中间件通过 Express 的路由级中间件组合使用
+         （auth, admin），实现了两层防护。
+
+
+    5.4 前端路由与权限控制
+
+    路由配置（wiki-frontend/src/router/index.ts）使用 Vue Router 4 的 createWebHistory
+    模式，共定义 11 条路由，包括首页、角色列表、卡牌列表、Boss 列表、文章详情、搜索页、
+    登录页、后台仪表盘、文章编辑器（新建/编辑复用同一组件）、评论管理页。所有页面组件均
+    使用动态 import() 实现路由级懒加载。
+
+    权限控制通过路由元信息 meta 和全局前置守卫 beforeEach 实现：
+    - meta.requiresAdmin 标记的路由，在守卫中检查 authStore.isAdmin，非管理员自动
+      重定向到 /admin/login。
+    - meta.guest 标记的登录页路由，已登录管理员访问时自动重定向到 /admin，避免重复登录。
+    - isAdmin 的判断依赖 Pinia store 中的 user.role === 'admin'，而 user 的信息从
+      localStorage 持久化恢复，确保页面刷新后登录状态不丢失。
+
+
+    5.5 Axios 封装与 Token 管理
+
+    在 wiki-frontend/src/api/request.ts 中创建 Axios 实例，baseURL 为 '/api'（开发时由
+    Vite 代理到后端，生产环境可配合 Nginx 反代），超时时间 15 秒。
+
+    请求拦截器：每次请求前从 localStorage 读取 Token，若存在则通过 Authorization 头
+    以 Bearer 格式携带。后端 auth 中间件正是从这个字段提取 Token 做验证。
+
+    响应拦截器：成功时直接解包 response.data，简化业务层代码。错误时统一处理：提取
+    HTTP 状态码和后端返回的错误消息；状态码 401（Token 过期或无效）时自动清除本地
+    存储的 Token 和用户信息，如当前在后台页面则重定向到登录页；最后通过 Element Plus
+    的 ElMessage.error 弹出错误提示。
+
+    这种封装使得所有 API 调用函数（api/auth.ts、api/posts.ts、api/comments.ts）只需
+    关注业务参数，不需要手动处理 Token 拼接和错误提示。
+
+
+    5.6 用户认证与状态管理
+
+    认证状态使用 Pinia 的 auth store（wiki-frontend/src/stores/auth.ts）管理，采用
+    Composition API 风格的 setup store 写法。state 包括 token 和 user，均从 localStorage
+    初始化（页面刷新恢复登录态）。computed 属性 isLoggedIn 和 isAdmin 供全局使用。
+
+    login action 调用登录 API，成功后同时更新响应式状态和 localStorage 持久化。
+    fetchUser action 用于从服务端重新获取用户信息，失败时自动调用 logout 清除状态。
+    logout action 清空所有状态和本地存储。
+
+    主题状态由 theme store（wiki-frontend/src/stores/theme.ts）管理，isDark 状态同样
+    持久化至 localStorage。通过 Vue 的 watch 函数监听 isDark 变化，立即在
+    document.documentElement 上设置 data-theme 属性（值为 'dark' 或 'light'），
+    CSS 变量根据该属性切换配色方案。
+
+
+    5.7 前台功能实现
+
+    （1）首页（wiki-frontend/src/views/front/HomePage.vue）
+         采用双栏布局：左侧 260px 固定侧边栏（sticky 定位）+ 右侧自适应主内容区。
+         侧边栏包含板块导航（全部/角色/卡牌/Boss 四个 tab）和标签云组件，移动端
+         （<768px）隐藏侧边栏。主内容区渲染 PostList 组件，接收 postType、tag 等
+         props 实现联动筛选。
+
+    （2）文章列表组件（wiki-frontend/src/components/PostList.vue）
+         接收 category、keyword、tag、postType 四个 props，通过 watch 监听所有
+         props 变化，变化时自动回到第一页重新请求。分页切换时调用 window.scrollTo
+         滚动到页面顶部。使用 v-loading 指令显示加载状态，空数据时显示 el-empty。
+
+    （3）文章卡片组件（wiki-frontend/src/components/PostCard.vue）
+         通用卡片展示封面图、标题、摘要、分类标签、作者、日期、阅读量。点击跳转到
+         文章详情页。
+
+    （4）各内容类型专用卡片
+         CharacterCard（wiki-frontend/src/components/CharacterCard.vue）：展示角色
+         血量、初始遗物、核心机制，使用角色主题色渐变背景。
+         CardCard（wiki-frontend/src/components/CardCard.vue）：展示卡牌费用（根据
+         attack/skill/power 子类型着色）、稀有度、机制。
+         BossCard（wiki-frontend/src/components/BossCard.vue）：展示 Boss 层数（不同
+         层数对应不同颜色顶部边框）、血量、机制。
+
+    （5）文章详情页（wiki-frontend/src/views/front/PostDetail.vue）
+         页面加载时通过路由参数 id 获取文章详情（getPost 接口每次调用都会使后端
+         viewCount 加 1）。同时请求该文章下的评论列表。
+
+         内容渲染：使用 markdown-it 库，配置 html: true 和 linkify: true，并通过
+         highlight.js 实现代码语法高亮（使用 github-dark 主题）。通过 renderContent
+         函数自动检测内容格式——如果内容包含 HTML 标签则直接作为 HTML 渲染（适用于
+         后台 TipTap 编辑器产生的富文本及种子数据中的 HTML 内容），否则用 markdown-it
+         转为 HTML 后渲染。
+
+         类型专属信息栏：根据 postType 显示不同的信息条——角色类型显示 HP、初始遗物、
+         核心机制（蓝色调渐变背景）；卡牌类型显示费用、子类型（攻击红/技能绿/能力蓝）、
+         稀有度（橙色调背景）；Boss 类型显示层数、HP、核心机制（红色调背景）。
+
+         评论区：嵌入 CommentForm 和 CommentList 组件，评论提交成功后通过 emit 事件
+         触发父组件重新获取评论列表。
+
+    （6）分类列表页
+         角色列表（CharacterList）、卡牌列表（CardList）、Boss 列表（BossList）三个
+         页面结构类似。以 CardList（wiki-frontend/src/views/front/CardList.vue）为例：
+         固定 postType='card' 请求参数，提供攻击牌/技能牌/能力牌三个 tab 切换
+         cardSubtype 筛选条件；同时通过 watch 监听路由 query 参数 subtype 的变化实现
+         URL 驱动的筛选状态同步（通过 URL 分享链接可直接定位到筛选后的列表）。
+
+    （7）搜索功能（wiki-frontend/src/views/front/SearchPage.vue）
+         顶部导航栏的搜索框输入关键词后按回车，跳转到 /search?q=xxx。SearchPage
+         读取 query 参数 q，将其作为 keyword prop 传给 PostList 组件。后端通过正则
+         表达式对标题和内容做模糊匹配（使用 $regex 配合 $options: 'i' 实现不区分
+         大小写搜索），并且对用户输入中的正则特殊字符做了转义处理防止正则注入。
+
+    （8）标签云组件（wiki-frontend/src/components/TagCloud.vue）
+         组件挂载时调用 getPosts({ pageSize: 1000 }) 获取所有文章（列表接口返回时
+         排除了 content 字段，所以数据量可控），然后遍历每篇文章的 tags 数组，使用
+         Map 统计每个标签的出现频次，按频次降序排列取前 30 个标签展示。点击标签
+         通过 emit 事件通知父组件（HomePage）更新筛选条件，实现通过标签快速检索
+         相关文章。
+
+
+    5.8 后台管理功能实现
+
+    （1）登录页（wiki-frontend/src/views/admin/LoginPage.vue）
+         使用 Element Plus 的 el-form 组件，配置表单校验规则（用户名和密码必填），
+         默认填充 admin/admin123 方便开发调试。登录成功后跳转到 /admin。
+
+    （2）文章管理仪表盘（wiki-frontend/src/views/admin/Dashboard.vue）
+         使用 el-table 展示文章列表，列包含标题、分类、类型标签、作者、置顶状态、
+         阅读量、创建时间、操作按钮。顶部提供类型筛选 tab（全部/角色/卡牌/Boss），
+         通过 watch 监听筛选条件变化自动重新加载数据。
+
+         行操作：
+         - 查看：跳转到前台文章详情页
+         - 编辑：跳转到文章编辑页（复用 PostEditor 组件，路由参数含 id）
+         - 置顶/取消置顶：调用 updatePost 切换 isPinned 布尔值，成功后刷新列表
+         - 删除：使用 ElMessageBox.confirm 弹出确认对话框，确认后调用 deletePost，
+           同时后端会级联删除该文章下所有评论
+
+         分页使用 el-pagination 组件，切换页码时重新请求数据。
+
+    （3）文章编辑器（wiki-frontend/src/views/admin/PostEditor.vue）
+         这是整个项目中逻辑最复杂的组件。通过路由是否有 id 参数判断是新建还是编辑模式，
+         编辑模式下在 onMounted 中通过 getPost 获取已有文章数据并填充表单。
+
+         富文本编辑器：使用 TipTap（@tiptap/vue-3，基于 ProseMirror 内核）集成。
+         安装的扩展包括 StarterKit（包含加粗、斜体、标题、列表、引用、代码块等）、
+         Image（支持插入图片，配置 allowBase64: false 要求图片通过 URL 加载）、
+         Placeholder（设置空编辑器占位提示文字"开始撰写文章内容..."）。
+
+         自定义工具栏：基于 el-button 构建，每个按钮通过 editor.chain().focus().
+         toggleXxx().run() 控制文本格式，按钮的 type 属性根据 editor.isActive()
+         返回值动态切换（激活态按钮高亮为 primary 色）。支持的格式操作包括：加粗、
+         斜体、删除线、行内代码、H1/H2/H3 标题、无序列表、有序列表、引用块。图片
+         插入通过创建隐藏的 file input 元素，选择图片后调用 /api/upload 接口上传，
+         成功后通过 editor.setImage() 将图片 URL 插入编辑器。
+
+         内容类型切换：通过 el-select 选择 postType（通用/角色/卡牌/Boss），使用
+         v-if 指令根据选择动态显示不同的游戏属性表单区域——角色类型显示 HP、初始遗物、
+         核心机制三个输入框；卡牌类型显示子类型选择（攻击/技能/能力）、费用数字输入
+         （0-10）、稀有度输入；Boss 类型显示层数选择（1/2/3）和 HP 输入。
+
+         封面图上传：使用 el-upload 组件，在 before-upload 钩子中拦截默认上传行为，
+         改为手动调用 /api/upload 接口上传，成功后显示缩略图预览。
+
+         标签输入：以文本框输入逗号分隔的标签字符串（中文逗号和英文逗号均支持），
+         保存时通过 split(/[,，]/) 分割、map trim、filter 去空后转为数组提交。
+
+         保存逻辑：校验标题非空和编辑器内容非空后，组装 payload 对象（包含所有通用
+         字段和类型专属字段，空字符串统一转为 null），根据 isEdit 模式调用 createPost
+         或 updatePost，成功后跳转到后台仪表盘。
+
+    （4）评论管理（wiki-frontend/src/views/admin/CommentManage.vue）
+         以 el-select 下拉选择文章后加载该文章下的所有评论，按时间倒序排列。管理员
+         可以逐条删除不当评论。
+
+
+    5.9 暗色模式
+
+    在 wiki-frontend/src/styles/variables.css 中定义了两套 CSS 自定义属性：
+    - :root / [data-theme='light']：白色背景（#ffffff）、深色文字（#303133）、
+      浅灰边框（#e4e7ed）等亮色方案变量。
+    - [data-theme='dark']：深海军蓝背景（#1a1a2e / #16213e / #1e2a45）、浅色文字
+      （#e0e0e0 / #b0b0b0）等暗色方案变量。
+
+    所有组件通过 var(--bg-primary)、var(--text-primary) 等 CSS 变量引用颜色，实现
+    全局统一主题切换。theme store 的 watch 在 isDark 变化时通过 setAttribute 修改
+    html 元素上的 data-theme 属性，浏览器根据属性选择器自动切换对应的 CSS 变量值。
+    两个主题之间的 color 和 background-color 均设置了 0.3s transition 过渡动画。
+
+    由于 Element Plus 本身支持暗色模式，在 main.ts 中额外引入了 Element Plus 的暗色
+    CSS 变量文件，确保 el-button、el-table 等 Element Plus 组件也能跟随主题变暗。
+
+
+    5.10 响应式布局
+
+    全局使用 CSS media query 处理移动端适配。AppHeader 在小屏（max-width: 768px）下
+    隐藏搜索框，缩小 logo 字号。HomePage 在移动端隐藏整个侧边栏（display: none），
+    只保留主内容区。文章详情页在小屏下将 padding 从 32px 40px 缩减到 20px 16px，
+    标题字号从 28px 缩减到 22px。
+
+
+    5.11 数据库初始化与种子数据
+
+    wiki-backend/seed.js 脚本用于初始化数据库，包含三大类种子数据：
+
+    - 管理员账号：username='admin', password='admin123', role='admin'。脚本先检查
+      该用户是否已存在，避免重复创建。
+    - 5 个角色的详细攻略（铁甲战士、静默猎手、故障机器人、储君、亡灵契约师），每个
+      角色包含基础属性（血量、初始遗物、上手难度）、核心机制详解（如铁甲战士的力量
+      爆发/消耗过牌/格挡反击/烧血四大体系）、关键卡牌评级表格。
+    - 24 张卡牌数据（分布在各角色下，按攻击/技能/能力分类），每张包含费用、稀有度、
+      机制说明和评级标签。
+    - 13 个 Boss 数据（第一层密林 3 + 暗港 3 + 第二层巢穴 3 + 第三层荣耀 4），每个
+      包含生命值、阶段机制和详细应对策略。
+
+    种子数据的内容部分使用 HTML 格式编写（包含 h2/h3 标题、ul/li 列表、table 表格
+    等结构化标签），运行 node seed.js 即可完成全部初始化。这也是为什么前端文章详情
+    页的 renderContent 函数需要同时兼容 HTML 和 Markdown 两种格式——TipTap 编辑器
+    产出的是 HTML，种子数据中的文章正文也是 HTML，但 renderContent 通过检测内容中
+    是否包含 HTML 标签来判断渲染方式，如果未来有人直接写 Markdown 也能正确渲染。
+
+
+六、实践结论及心得体会
+
+    6.1 技术选型体会
+
+    Vue 3 的 Composition API（script setup 语法）配合 TypeScript 让组件的逻辑组织
+    更加灵活。与 Options API 按 data/methods/computed 划分不同，setup 语法可以按功能
+    关注点组织代码——比如 PostEditor 中将编辑器的初始化逻辑、封面上传逻辑、图片插入
+    逻辑、保存逻辑自然地分开书写，不需要在 data 和 methods 之间反复跳转。Pinia 相比
+    Vuex 去掉了 mutations 这一层概念，直接在 actions 中修改 state，配合 TypeScript
+    的类型推导，编写体验简洁许多。
+
+    TipTap 基于 ProseMirror，可扩展性很强，但上手成本不低。比如工具栏每个按钮的状态
+    绑定都需要逐个调用 editor.isActive() 判断；图片上传需要自己创建隐藏的 file input、
+    手动调用上传接口、再调用 editor.setImage() 插入。这些都是官方文档中没有直接给出
+    完整示例的部分，需要自己摸索组合。
+
+    MongoDB 对这种 Wiki 内容结构天然友好——一篇文章可能有的类型字段（cardSubtype、
+    bossFloor、cost）不属于通用字段，在关系型数据库中需要设为 NULLABLE 列或做 EAV
+    设计，而 MongoDB 的文档模型天然支持字段的可选性。但 Post 模型目前只在 title 和
+    content 上建了文本索引，搜索功能实际用的是正则表达式而非全文索引，这在数据量
+    增大后会成为性能瓶颈。
+
+    6.2 安全方面的实践与不足
+
+    JWT Token + bcrypt 密码哈希是 Web 应用中基础的认证方案。User 模型的 pre-save 钩子
+    自动在保存前对密码做 bcrypt 加盐哈希（盐轮数 10），toJSON 方法覆写确保序列化时
+    剔除密码字段，这些是基本的安全实践。前端在 401 响应时自动清除 Token 并跳转登录页，
+    避免了过期 Token 滞留的问题。
+
+    但是，当前 .env 中的 JWT_SECRET 使用的是硬编码字符串 'wiki_jwt_secret_key_2024'，
+    在生产环境中应替换为随机生成的高强度密钥。另外后端的 CORS 中间件使用了默认配置
+    （允许所有来源），部署时应限制为前端的实际域名。评论提交的前后端虽然都做了长度
+    限制，但没有做 XSS 过滤——好在 Vue 的 v-html 用于渲染文章正文（管理员编辑的可信
+    内容），而评论内容使用的是 {{ }} 文本插值（自动转义），所以游客提交的评论不会
+    产生 XSS 漏洞，这是一个正确的处理方式。
+
+    6.3 前后端联调的经验
+
+    Vite 的 proxy 配置是前端开发阶段很实用的设计。前端代码中 API 路径写的都是相对路径
+    /api/xxx，开发时 Vite Dev Server 自动代理到 localhost:3000 后端，生产构建后只需
+    配合 Nginx 反代到同一域名下即可，前端代码本身不嵌入任何后端地址。这让整个项目的
+    部署迁移变得非常简单——不需要修改代码中的任何 URL 常量。
+
+    6.4 组件设计反思
+
+    项目中 PostList 组件的复用做得较好，它通过 props 接收 category/keyword/tag/postType
+    四个筛选条件，在首页、分类页、搜索页三个场景中被复用。但四个内容卡片组件（PostCard、
+    CharacterCard、CardCard、BossCard）之间存在大量重复——都要展示标题、摘要、标签、
+    封面图，只有专属信息区域不同。更好的做法是抽取一个 BaseCard 组件处理通用展示逻辑，
+    各类型卡片仅扩展专属的 info-bar 部分。
+
+    另外 PostEditor 组件同时服务新建和编辑两种模式，通过 isEdit 变量做运行时分支判断，
+    这在组件不太复杂时是合理的做法。但如果后续功能继续扩展（如文章草稿、定时发布、
+    版本历史），这个组件会变得过于臃肿，届时应该考虑拆分。
+
+    6.5 尚未完成或可改进的部分
+
+    - 评论功能目前只有基本的发布和列表展示，缺少回复、点赞、举报等常见社交功能。
+    - 文章没有"草稿"状态——在编辑器中保存即直接发布到前台。
+    - 搜索目前使用正则表达式的 $regex 模糊匹配，虽然在 keyword 参数中对特殊字符做
+      了转义处理避免正则注入，但这种方式不支持分词、相关性排序，数据量大时性能堪忧。
+      更好的方案是使用 MongoDB 的 $text 全文搜索或接入 Elasticsearch。
+    - 前端没有对封面图做懒加载，大的封面图可能影响首屏渲染速度。可以考虑使用
+      Intersection Observer 或浏览器原生的 loading="lazy" 属性。
+    - 缺少任何形式的自动化测试（单元测试、组件测试、E2E 测试）。
+    - 没有使用 TypeScript 对后端代码进行类型约束（后端目前是纯 JavaScript）。前端
+      虽然定义了 types/index.ts 中的接口，但 API 返回的数据并没有在运行时做校验，
+      如果后端返回的数据结构与类型定义不符，只能在运行时暴露。
+
+================================================================================
+                          报告结束
+================================================================================

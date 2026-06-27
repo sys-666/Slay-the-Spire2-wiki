@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { Search, Sunny, Moon } from '@element-plus/icons-vue'
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { Search, Sunny, Moon, HomeFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const theme = useThemeStore()
 
+const isHomePage = computed(() => route.path === '/')
 const keyword = ref('')
 
 function handleSearch() {
@@ -21,7 +23,11 @@ function handleSearch() {
 <template>
   <header class="app-header">
     <div class="header-inner container">
-      <router-link to="/" class="logo">🗡️ 杀戮尖塔2 Wiki</router-link>
+      <router-link v-if="isHomePage" to="/" class="logo">🗡️ 杀戮尖塔2 Wiki</router-link>
+      <template v-else>
+        <el-button :icon="HomeFilled" circle size="small" class="home-btn" @click="router.push('/')" />
+        <router-link to="/" class="logo logo-compact">🗡️ 杀戮尖塔2 Wiki</router-link>
+      </template>
 
       <div class="header-search">
         <el-input
@@ -72,12 +78,20 @@ function handleSearch() {
   width: 100%;
 }
 
+.home-btn {
+  flex-shrink: 0;
+}
+
 .logo {
   font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
   text-decoration: none;
+}
+
+.logo-compact {
+  font-size: 16px;
 }
 
 .header-search {
